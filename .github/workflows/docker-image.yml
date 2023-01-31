@@ -23,8 +23,8 @@ jobs:
         touch .env
         echo ACCESS_KEY_AWS=${{ secrets.ACCESS_KEY_AWS }} >> .env;
         echo SECRET_KEY_AWS=${{ secrets.SECRET_KEY_AWS }} >> .env;
-        echo S3_BUCKET_REGION=${{ secrets.S3_BUCKET_REGION }} >> .env;
-        echo S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }} >> .env;
+        echo EC2_INSTENCE_REGION=${{ secrets.EC2_INSTENCE_REGION }} >> .env;
+        echo EC2_INSTENCE_NAME=${{ secrets.EC2_INSTENCE_NAME }} >> .env;
         echo NODE_ENV="production" >> .env;
 
     - name: build frontend
@@ -39,4 +39,4 @@ jobs:
 
     - name: Deploy static site to S3 bucket
       run: |
-        aws s3 sync ./dist/ s3://projectz-school --delete
+        aws ec2 sync ./dist
