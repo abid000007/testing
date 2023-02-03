@@ -1,42 +1,41 @@
-name: Upload Website
-
+---
+name: deploy-to-staging
 on:
   push:
     branches:
-    - main
-
+      - master
 jobs:
   deploy:
+    concurrency:
+      group: ${{ github.ref }}
+    needs: lint_and_build
+    name: Deploy to staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
-    - uses: actions/setup-node@v3
-      with:
-        node-version: "18"
-        cache: npm
-    - name: Install Node Dependencies
-      run: npm ci
-    - name: create env file
-      run: |
-        touch .env
-        echo ACCESS_KEY_AWS=${{ secrets.ACCESS_KEY_AWS }} >> .env;
-        echo SECRET_KEY_AWS=${{ secrets.SECRET_KEY_AWS }} >> .env;
-        echo EC2_INSTENCE_REGION=${{ secrets.EC2_INSTENCE_REGION }} >> .env;
-        echo EC2_INSTENCE_NAME=${{ secrets.EC2_INSTENCE_NAME }} >> .env;
-        echo NODE_ENV="production" >> .env;
-
-    - name: build frontend
-      run: |
-        npm run build
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
-        aws-secret-access-key: ${{ secrets.AWS_SECERT_KEY_ACCESS }}
-        aws-region: us-east-1
-
-    - name: Deploy static site to S3 bucket
-      run: |
-        aws ec2 sync ./dist
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/staging.key
+          chmod 600 ~/.ssh/staging.key
+          cat >>~/.ssh/config <<END
+          Host staging
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/staging.key
+            StrictHostKeyChecking no
+          END
+        env:
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+      - name: Pull the latest code to the staging environment
+        run: ssh staging 'cd testing && git pull'
+      - name: Start containers
+        run: |
+          ssh staging 'cd testing && bash scripts/start_server.sh'
+      - name: Test the App
+        run: >
+          ssh staging 'if [ $( docker ps -a | grep testing | wc -l ) -gt 0 ];
+          then  echo "testing exists"; else   echo "testing does not exist" &&
+          raise error; fi'
